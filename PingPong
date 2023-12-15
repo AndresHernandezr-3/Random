@@ -1,0 +1,207 @@
+// ------------------------------------------------------------------
+
+#include <hidef.h>             // For EnableInterrupts macro
+#include "derivative.h"        // Include peripheral declarations
+#include "timersJ_.h"         // Timers
+#include "SciComm.h"           // SCI Comm. Support
+// ******************************************************************
+
+
+const    word Delays[]= {500, 450, 400, 350, 300, 250, 200, 150};
+    byte i;
+    byte puntosa= 0x30;
+    byte puntosb= 0x30;
+byte leds = 1; 
+    byte RaquetaA;
+    byte RaquetaB;
+    byte  XmtNchars;               //Soft Flag for Main: 0 Nothing to Xmt
+        byte *XmtPtr;                  //char pointer of next data to Xmt
+        byte  Win1[] = "¡Jugador 1 ha ganado!\n\r"; // Mensaje ganador 1
+        byte  Win2[] = "¡Jugador 2 ha ganado!\n\r"; // Mensaje ganador 2
+        byte Score[] = "El puntaje actual es: "; //Mensaje puntaje
+byte dato;
+
+void main ( void ){
+byte letter;
+#define COP_Disable 0x42
+SOPT1 = COP_Disable;        // System Options 1
+PTCDD = 0xFF;
+PTEDD = 0xFF;                
+PTADD=0x00;
+PTBDD=0x32;
+PTBD=0x00;
+TPM1SC=0x07;
+TPM1MOD=0x00;
+
+IniTimers( 8 );
+
+SCI9600N8;                  // Setup Serial Communications Inter-
+XmtRcvActivate;             // ..face: 9600 bps, No parity, 8 bits
+
+for( i = 0; i < 7; i ++ ) {
+      SetimerMS( i, Delays[ i ] >> 2 );}
+
+CpuIntEn;
+
+RaquetaA=1;
+RaquetaB=0;
+i=0;
+Startgame();
+}
+
+int Startgame(){
+RcvIntEn;
+if(RaquetaA==1){
+leds=1;
+PingpongA(leds);
+}
+else{Startgame();
+}}
+
+int Startgame2(){
+RcvIntEn;
+if(RaquetaB==1){
+leds=128;
+PingpongB(leds);
+}
+else{Startgame2();
+}}
+int Endgame2(){
+  puntosb++;
+  if(puntosb==0x35){
+      XmtPtr    = Win2;        // Init XmtPtr with 'Message' address;
+      XmtNchars = sizeof( Win2 );
+      XmtIntEn;                   // XmtISR will send the message and ..clear 'XmtNchars' when finished
+      CpuIntEn;                   // <<<DON'T FORGET: GLOBAL ENABLE INTs
+      Wait( XmtNchars == 0 );     // Wait until done OR just WaitForEver
+      puntosb=0x30;
+        puntosa=0x30;}
+   else{
+      XmtPtr    = Score;        // Init XmtPtr with 'Message' address;
+            XmtNchars = sizeof( Score );
+            XmtIntEn;                   // XmtISR will send the message and ..clear 'XmtNchars' when finished
+            CpuIntEn;                   // <<<DON'T FORGET: GLOBAL ENABLE INTs
+            Wait( XmtNchars == 0 );     // Wait until done OR just WaitForEver
+            putchar(puntosa);
+            putchar('-');
+            putchar(puntosb);
+            putchar( '\n');
+            putchar( '\r');}
+  i=0;
+RcvIntEn;  
+Startgame();
+}
+
+int Endgame1(){
+  puntosa++;
+  if(puntosa==0x35){
+        XmtPtr    = Win1;        // Init XmtPtr with 'Message' address;
+        XmtNchars = sizeof( Win1 );
+        XmtIntEn;                   // XmtISR will send the message and ..clear 'XmtNchars' when finished
+        CpuIntEn;                   // <<<DON'T FORGET: GLOBAL ENABLE INTs
+        Wait( XmtNchars == 0 );     // Wait until done OR just WaitForEver
+        puntosb=0x30;
+      puntosa=0x30;}
+  else{
+  XmtPtr    = Score;        // Init XmtPtr with 'Message' address;
+          XmtNchars = sizeof( Score );
+          XmtIntEn;                   // XmtISR will send the message and ..clear 'XmtNchars' when finished
+          CpuIntEn;                   // <<<DON'T FORGET: GLOBAL ENABLE INTs
+          Wait( XmtNchars == 0 );     // Wait until done OR just WaitForEver
+          putchar(puntosa);
+          putchar('-');
+          putchar(puntosb);
+          putchar( '\n');
+          putchar( '\r');}
+  i=0;
+  Wait( XmtNchars == 0 );     // Wait until done OR just WaitForEver
+RcvIntEn;  
+Startgame2();
+}
+
+int PingpongA(leds){
+RaquetaA=0;
+if(leds==1){
+PTBD=1;
+TPM1SC=0x47;
+RaquetaB=0;
+    while(RaquetaB==0) {
+      RcvIntEn;    
+           if(leds<256){
+          leds=leds*2;
+           }
+           else{
+           break;}
+           PTCD=~leds;
+           PTED=~leds;
+           WaitISR_on(i,Delays[i]);
+    }
+    if(i<7){
+    i++;
+    }
+        RaquetaA=0;
+        RaquetaB=0;
+        PingpongB(leds);
+        }
+else{
+    Endgame2();}}
+
+
+
+
+
+int PingpongB(leds){
+RaquetaB=0;
+if(leds==128){
+PTBD=1;
+TPM1SC=0x47;
+RaquetaA=0;
+while(RaquetaA==0) {
+RcvIntEn;
+    if(leds>=1){
+    leds=leds/2;   }
+    else{break;}
+    PTCD=~leds;
+    PTED=~leds;
+    WaitISR_on(i,Delays[i]);
+    }
+if(i<7){
+i++;
+}
+    RaquetaA=0;
+    RaquetaB=0;
+    PingpongA(leds);}
+else{Endgame1();}}
+
+
+interrupt VectorNumber_Vsci1tx void XmtISR( void )             /*()*/
+{
+   if( XmtNchars ) {           // See if done; if not:
+       putchar( *XmtPtr++ );   // (NOTE: putchar clears XMTRDY.bit)
+       XmtNchars--;            // Adjust char counter
+   }else{                      // If XmtDone:
+       XmtIntDsb;              // ..
+   }
+}
+
+interrupt VectorNumber_Vsci1rx SCI_RX_ISR(void) {
+     byte leer;
+     byte dato;      //Se declaran las variables que recibe el dato que se escribe.
+     leer = SCI1S1; //Baja la bandera de recepción, por tal motivo para volverlo a utilizar hay que ponerlo nuevamente en cero.
+     dato = getchar();
+     switch(dato){
+     case 'a': 
+         RaquetaA=1;
+         break;
+     case 'b':
+         RaquetaB=1;
+         break;
+    default:
+        break;}
+     SCI1C2=0x8C;}
+
+interrupt VectorNumber_Vtpm1ovf TPMcounter(void){
+TPM1MOD=0x3B;
+TPM1SC=0x07;
+PTBD=0;
+}
