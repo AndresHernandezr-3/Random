@@ -1,0 +1,55 @@
+import cv2
+import os
+
+# Corrected paths with raw strings
+classesFile = r"myenv/coco.names"
+modelConfiguration = r"myenv/ssd_mobilenet_v2_coco_2018_03_29 (3).pbtxt"
+modelWeights = r"myenv/ssd_mobilenet_v2_coco_2018_03_29/frozen_inference_graph.pb"
+
+# Check if the files exist
+if not all(os.path.exists(path) for path in [classesFile, modelConfiguration, modelWeights]):
+    print("One or more files do not exist.")
+    exit()
+
+net = cv2.dnn_DetectionModel(modelWeights, modelConfiguration)
+net.setInputSize(320, 320)
+net.setInputScale(1.0 / 127.5)
+net.setInputMean((127.5, 127.5, 127.5))
+net.setInputSwapRB(True)
+
+# Function to draw bounding box around the detected object
+def drawBoundingBox(frame, classId, conf, left, top, right, bottom):
+    cv2.rectangle(frame, (left, top), (right, bottom), (255, 178, 50), 3)
+    label = '%.2f' % conf
+    if classes:
+        assert(classId < len(classes))
+        label = '%s:%s' % (classes[classId], label)
+    cv2.putText(frame, label, (left, top), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
+
+# Initialize video source, could be a video file or webcam
+cap = cv2.VideoCapture(0)
+
+# Initialize tracker
+tracker = cv2.TrackerKCF_create()
+
+# Read frames from the video
+while cv2.waitKey(1) < 0:
+    hasFrame, frame = cap.read()
+    if not hasFrame:
+        cv2.waitKey()
+        break
+
+    # Detect objects
+    classIds, confs, boxes = net.detect(frame, confThreshold, nmsThreshold)
+    for detection in zip(classIds.flatten(), confs.flatten(), boxes):
+        classId, conf, box = detection
+        left, top, width, height = box
+        drawBoundingBox(frame, classId, conf, left, top, left + width, top + height)
+
+        # Initialize tracker with first frame and bounding box
+        ok = tracker.init(frame, tuple(box))
+
+    # Display result
+    cv2.imshow("Object Detection and Tracking", frame)
+
+cv2.destroyAllWindows()
